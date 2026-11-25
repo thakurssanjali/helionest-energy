@@ -9,7 +9,7 @@ services:
       - key: GROQ_API_KEY
         sync: false            # Render asks you to paste it during setup (never commit it)
       - key: RAG_BACKEND
-        value: auto            # set to "bm25" if the free instance runs out of memory
+        value: bm25            # vector RAG needs ~690MB (free plan = 512MB); use "auto" on a paid plan
       - key: REDIS_URL
         fromService:
           type: keyvalue
