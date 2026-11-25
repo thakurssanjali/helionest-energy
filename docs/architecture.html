@@ -1,0 +1,77 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>HelioNest AI Sales Voice Agent: Architecture</title>
+<style>
+  body{margin:0;font-family:Inter,Segoe UI,Arial,sans-serif;background:#fff;color:#0f172a}
+  .wrap{width:1600px;height:1000px;position:relative;box-sizing:border-box;padding:28px 36px}
+  h1{margin:0;font-size:28px} .sub{color:#475569;font-size:15px;margin-top:4px}
+  .zone{box-sizing:border-box;position:absolute;border:2px dashed #cbd5e1;border-radius:18px;padding:14px}
+  .zone>.t{font-weight:700;font-size:15px;color:#334155;margin-bottom:8px;text-transform:uppercase;letter-spacing:.04em}
+  .box{border-radius:12px;padding:10px 12px;margin-bottom:10px;font-size:14px;line-height:1.35;border:1.5px solid}
+  .box b{display:block;font-size:15px;margin-bottom:2px}
+  .fe{background:#ecfdf5;border-color:#10b981} .be{background:#fff7ed;border-color:#f59e0b}
+  .ai{background:#eef2ff;border-color:#6366f1} .db{background:#fef2f2;border-color:#ef4444}
+  .fut{background:#f8fafc;border-color:#94a3b8;border-style:dashed;color:#475569}
+  .arrow{position:absolute;font-size:13px;color:#0f172a;font-weight:600;text-align:center}
+  .line{position:absolute;background:#0f172a;height:2px}
+  .flow{position:absolute;left:36px;right:36px;bottom:24px;background:#0f172a;color:#fff;border-radius:14px;padding:14px 18px;font-size:14.5px;line-height:1.5}
+  .flow span{color:#fbbf24;font-weight:700}
+</style></head><body><div class="wrap">
+<h1>HelioNest Energy · AI Sales Voice Agent: System Architecture</h1>
+<div class="sub">React + Tailwind (browser) → FastAPI on Render → Groq (Whisper STT · GPT-OSS-120B agent · Orpheus TTS) · Render Key Value (Redis) · RAG over the company knowledge base</div>
+
+<div class="zone" style="left:36px;top:100px;width:340px;height:780px">
+  <div class="t">1 · Browser (caller)</div>
+  <div class="box fe"><b>Phone-call UI (React + Tailwind)</b>Inbound call · outbound "incoming call" · live transcript · typing fallback</div>
+  <div class="box fe"><b>Turn-taking (Web Audio VAD)</b>Noise calibration → speech detected → 1 s silence ends the turn · push-to-talk mode</div>
+  <div class="box fe"><b>Barge-in</b>Caller speaks over Priya → her audio stops, mic opens</div>
+  <div class="box fe"><b>MediaRecorder</b>Records each utterance (webm/opus) → POST /api/call/{id}/turn</div>
+  <div class="box fe"><b>Playback</b>English: Groq Orpheus audio · Hindi or TTS failure: free browser speechSynthesis</div>
+  <div class="box fe"><b>localStorage memory</b>Visitor id · lead id ("Welcome back") · settings · past call summaries</div>
+  <div class="box fe"><b>Sales dashboard</b>KPIs · leads · bookings · insights · "AI call" a lead</div>
+</div>
+
+<div class="arrow" style="left:378px;top:330px;width:120px">HTTPS (REST)<br>audio / text →<br>← reply + events</div>
+<div class="line" style="left:378px;top:395px;width:120px"></div>
+
+<div class="zone" style="left:500px;top:100px;width:560px;height:780px">
+  <div class="t">2 · Backend: FastAPI on Render (Docker)</div>
+  <div style="display:flex;gap:12px">
+    <div style="flex:1">
+      <div class="box be"><b>Call API</b>/call/start · /call/{id}/turn · /call/{id}/end · /tts</div>
+      <div class="box be"><b>Agent orchestrator</b>Persona prompt (Priya) + live call context (lead fields, last summary, date/time) + last 12 messages → tool-calling loop (max 4 rounds)</div>
+      <div class="box be"><b>Rule-based BANT scoring</b>Need 30 · Authority 20 · Budget 20 · Timeline 20 · Engagement 10 → Hot / Warm / Cold</div>
+      <div class="box be"><b>Post-call analysis</b>One LLM call → JSON: summary, needs, objections, per-turn sentiment, outcome, next action</div>
+      <div class="box be"><b>Dashboard API</b>/leads · /calls · /bookings · /insights</div>
+    </div>
+    <div style="flex:1">
+      <div class="box be"><b>Agent tools (function calling)</b>
+        • search_knowledge_base (RAG)<br>• update_lead (CRM)<br>• check_available_slots<br>• book_site_survey (atomic slot lock)<br>• request_human_callback<br>• end_call</div>
+      <div class="box be"><b>RAG engine</b>knowledge_base/*.md → split by section → bge-small embeddings (fastembed, ONNX) + BM25 keyword blend → top-3 chunks · auto-fallback to BM25</div>
+      <div class="box be"><b>Guardrails</b>Facts only from RAG · fixed offers · no OTP/Aadhaar · AI disclosure · escalation rules · Whisper noise filter</div>
+      <div class="box be"><b>Resilience</b>120B → 20B fallback on rate limit · retry malformed tool calls · TTS → browser voice</div>
+    </div>
+  </div>
+</div>
+
+<div class="zone" style="left:1090px;top:100px;width:474px;height:300px">
+  <div class="t">3 · AI models (Groq API)</div>
+  <div class="box ai"><b>Speech-to-text: Whisper large-v3</b>Auto language detect (English / Hindi / Hinglish) + domain prompt</div>
+  <div class="box ai"><b>LLM: GPT-OSS-120B</b>Tool calling · reasoning effort "low" · fallback GPT-OSS-20B</div>
+  <div class="box ai"><b>Text-to-speech: Orpheus (English)</b>Sentence-by-sentence for fast first audio</div>
+</div>
+
+<div class="zone" style="left:1090px;top:420px;width:474px;height:150px">
+  <div class="t">4 · Data: Render Key Value (Redis)</div>
+  <div class="box db"><b>lead:* · call:* · session:* (2 h TTL) · slot:* (SETNX) · bookings</b>In-memory fallback for local dev</div>
+</div>
+
+<div class="zone" style="left:1090px;top:590px;width:474px;height:290px">
+  <div class="t">5 · Phase 2 (designed, not built)</div>
+  <div class="box fut">Real phone calls: Twilio / Exotel media streams → same agent · HubSpot / Salesforce + Google Calendar sync · streaming STT/TTS · queue workers for analysis</div>
+</div>
+<div class="line" style="left:1060px;top:250px;width:30px"></div>
+<div class="line" style="left:1060px;top:495px;width:30px"></div>
+
+<div class="flow"><span>One conversation turn:</span> caller speaks → VAD detects end of turn → audio uploaded → Whisper transcribes → agent (GPT-OSS-120B) decides → calls tools (RAG search · update CRM · check/book slot) → final reply → split into sentences → Orpheus / browser voice speaks → mic re-opens.
+<span>After hang-up:</span> transcript → JSON summary + sentiment + outcome → lead re-scored → saved in Redis → visible on the dashboard, and used as memory for the next call.</div>
+</div></body></html>

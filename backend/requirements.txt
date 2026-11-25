@@ -1,0 +1,10 @@
+fastapi>=0.115
+uvicorn[standard]>=0.30
+python-multipart>=0.0.9
+python-dotenv>=1.0
+groq>=0.30
+redis>=5.0
+numpy>=1.26
+# Optional: vector embeddings for RAG. If it is missing or fails to load,
+# the app automatically falls back to BM25 keyword search.
+fastembed>=0.4
